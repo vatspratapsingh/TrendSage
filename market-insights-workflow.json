@@ -1,0 +1,395 @@
+{
+  "name": "Market Insights Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "value": "0 9 * * *"
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Daily 9 AM Trigger",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.competitor_website }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "web-scraper",
+      "name": "Competitor Website Scraper",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 200]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "resource": "tweet",
+        "returnAll": false,
+        "limit": 10,
+        "additionalFields": {
+          "tweetFields": "created_at,public_metrics,context_annotations",
+          "userFields": "username,verified",
+          "expansions": "author_id"
+        },
+        "query": "from:{{ $json.competitor_handle }}"
+      },
+      "id": "twitter-scraper",
+      "name": "Twitter Data Collector",
+      "type": "n8n-nodes-base.twitter",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://query1.finance.yahoo.com/v8/finance/chart/{{ $json.stock_symbol }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "yahoo-finance",
+      "name": "Yahoo Finance Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 400]
+    },
+    {
+      "parameters": {
+        "url": "https://newsapi.org/v2/everything",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "{{ $json.company_name }}"
+            },
+            {
+              "name": "apiKey",
+              "value": "={{ $env.GOOGLE_NEWS_API_KEY }}"
+            },
+            {
+              "name": "sortBy",
+              "value": "publishedAt"
+            },
+            {
+              "name": "pageSize",
+              "value": "20"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "news-collector",
+      "name": "News Data Collector",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 500]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "create",
+        "model": "gpt-3.5-turbo",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are a market analyst. Analyze the provided data and create a comprehensive daily market insights report."
+            },
+            {
+              "role": "user",
+              "content": "Please analyze the following market data and provide:\n1. Key competitor activities\n2. Market sentiment analysis\n3. Stock performance summary\n4. News highlights\n5. Actionable insights\n\nData: {{ JSON.stringify($json) }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 1000
+        }
+      },
+      "id": "openai-analyzer",
+      "name": "AI Market Analysis",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "create",
+        "model": "gpt-3.5-turbo",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are a sentiment analysis expert. Analyze the sentiment of the provided text and return a JSON object with sentiment scores."
+            },
+            {
+              "role": "user",
+              "content": "Analyze the sentiment of this text: {{ $json.text }}\n\nReturn JSON format: {\"sentiment\": \"positive/negative/neutral\", \"confidence\": 0.0-1.0, \"keywords\": [\"keyword1\", \"keyword2\"]}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.3,
+          "maxTokens": 200
+        }
+      },
+      "id": "sentiment-analyzer",
+      "name": "Sentiment Analysis",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "market_data",
+        "columns": "date,competitor,data_type,raw_data,processed_data,created_at",
+        "values": "={{ new Date().toISOString().split('T')[0] }},{{ $json.competitor }},{{ $json.data_type }},{{ JSON.stringify($json.raw_data) }},{{ JSON.stringify($json.processed_data) }},{{ new Date().toISOString() }}"
+      },
+      "id": "database-insert",
+      "name": "Store in Database",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "{\n  \"text\": \"📊 Daily Market Insights Report\",\n  \"blocks\": [\n    {\n      \"type\": \"header\",\n      \"text\": {\n        \"type\": \"plain_text\",\n        \"text\": \"📈 Market Insights - {{ new Date().toLocaleDateString() }}\"\n      }\n    },\n    {\n      \"type\": \"section\",\n      \"text\": {\n        \"type\": \"mrkdwn\",\n        \"text\": \"{{ $json.analysis }}\"\n      }\n    },\n    {\n      \"type\": \"context\",\n      \"elements\": [\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"🤖 Generated by TrendSage AI Pipeline\"\n        }\n      ]\n    }\n  ]\n}"
+      },
+      "id": "slack-notification",
+      "name": "Slack Notification",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1120, 200]
+    },
+    {
+      "parameters": {
+        "url": "https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "{\n  \"chat_id\": \"{{ $env.TELEGRAM_CHAT_ID }}\",\n  \"text\": \"📊 *Daily Market Insights Report*\\n\\n{{ $json.analysis }}\\n\\n🤖 Generated by TrendSage AI Pipeline\",\n  \"parse_mode\": \"Markdown\"\n}"
+      },
+      "id": "telegram-notification",
+      "name": "Telegram Notification",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Data preparation for parallel processing\nconst competitors = [\n  { website: 'https://apple.com', handle: 'apple', symbol: 'AAPL', name: 'Apple' },\n  { website: 'https://google.com', handle: 'google', symbol: 'GOOGL', name: 'Google' },\n  { website: 'https://microsoft.com', handle: 'microsoft', symbol: 'MSFT', name: 'Microsoft' }\n];\n\nreturn competitors.map(competitor => ({\n  competitor_website: competitor.website,\n  competitor_handle: competitor.handle,\n  stock_symbol: competitor.symbol,\n  company_name: competitor.name\n}));"
+      },
+      "id": "data-preparation",
+      "name": "Prepare Competitor Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Combine and process all collected data\nconst allData = $input.all();\n\n// Group data by competitor\nconst competitorData = {};\nallData.forEach(item => {\n  const competitor = item.json.competitor || item.json.company_name || 'unknown';\n  if (!competitorData[competitor]) {\n    competitorData[competitor] = {\n      competitor: competitor,\n      website_data: null,\n      twitter_data: null,\n      stock_data: null,\n      news_data: null,\n      sentiment: null\n    };\n  }\n  \n  // Categorize data based on source\n  if (item.json.data_type === 'website') {\n    competitorData[competitor].website_data = item.json;\n  } else if (item.json.data_type === 'twitter') {\n    competitorData[competitor].twitter_data = item.json;\n  } else if (item.json.data_type === 'stock') {\n    competitorData[competitor].stock_data = item.json;\n  } else if (item.json.data_type === 'news') {\n    competitorData[competitor].news_data = item.json;\n  } else if (item.json.data_type === 'sentiment') {\n    competitorData[competitor].sentiment = item.json;\n  }\n});\n\n// Return combined data for AI analysis\nreturn Object.values(competitorData).map(data => ({\n  competitor: data.competitor,\n  combined_data: data,\n  timestamp: new Date().toISOString()\n}));"
+      },
+      "id": "data-combiner",
+      "name": "Combine Collected Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract text for sentiment analysis\nconst items = $input.all();\nconst textItems = [];\n\nitems.forEach(item => {\n  const data = item.json;\n  \n  // Extract text from different sources\n  if (data.website_data && data.website_data.content) {\n    textItems.push({\n      text: data.website_data.content,\n      source: 'website',\n      competitor: data.competitor\n    });\n  }\n  \n  if (data.twitter_data && data.twitter_data.data) {\n    data.twitter_data.data.forEach(tweet => {\n      textItems.push({\n        text: tweet.text,\n        source: 'twitter',\n        competitor: data.competitor\n      });\n    });\n  }\n  \n  if (data.news_data && data.news_data.articles) {\n    data.news_data.articles.forEach(article => {\n      textItems.push({\n        text: article.title + ' ' + article.description,\n        source: 'news',\n        competitor: data.competitor\n      });\n    });\n  }\n});\n\nreturn textItems;"
+      },
+      "id": "text-extractor",
+      "name": "Extract Text for Sentiment",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 500]
+    }
+  ],
+  "connections": {
+    "Daily 9 AM Trigger": {
+      "main": [
+        [
+          {
+            "node": "Prepare Competitor Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Competitor Data": {
+      "main": [
+        [
+          {
+            "node": "Competitor Website Scraper",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Twitter Data Collector",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Yahoo Finance Data",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "News Data Collector",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Competitor Website Scraper": {
+      "main": [
+        [
+          {
+            "node": "Combine Collected Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Twitter Data Collector": {
+      "main": [
+        [
+          {
+            "node": "Combine Collected Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Yahoo Finance Data": {
+      "main": [
+        [
+          {
+            "node": "Combine Collected Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "News Data Collector": {
+      "main": [
+        [
+          {
+            "node": "Combine Collected Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine Collected Data": {
+      "main": [
+        [
+          {
+            "node": "AI Market Analysis",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Extract Text for Sentiment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Text for Sentiment": {
+      "main": [
+        [
+          {
+            "node": "Sentiment Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Market Analysis": {
+      "main": [
+        [
+          {
+            "node": "Store in Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sentiment Analysis": {
+      "main": [
+        [
+          {
+            "node": "Store in Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store in Database": {
+      "main": [
+        [
+          {
+            "node": "Slack Notification",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "1"
+}

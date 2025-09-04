@@ -1,0 +1,142 @@
+{
+  "name": "TrendSage Market Insights Dashboard",
+  "description": "Real-time market insights and competitor analysis dashboard",
+  "version": "1.0.0",
+  "database": {
+    "type": "postgresql",
+    "connection_string": "{{ $env.DATABASE_URL }}",
+    "tables": [
+      "market_data",
+      "competitors",
+      "daily_insights",
+      "dashboard_metrics",
+      "notifications_log"
+    ]
+  },
+  "dashboards": [
+    {
+      "name": "Market Overview",
+      "description": "High-level market insights and trends",
+      "cards": [
+        {
+          "name": "Daily Market Sentiment",
+          "type": "line",
+          "query": "SELECT date, AVG(sentiment_score) as avg_sentiment FROM market_data WHERE date >= CURRENT_DATE - INTERVAL '30 days' GROUP BY date ORDER BY date",
+          "visualization": {
+            "x_axis": "date",
+            "y_axis": "avg_sentiment",
+            "title": "Market Sentiment Trend (30 Days)"
+          }
+        },
+        {
+          "name": "Competitor Performance",
+          "type": "bar",
+          "query": "SELECT competitor, AVG(sentiment_score) as avg_sentiment, COUNT(*) as data_points FROM market_data WHERE date >= CURRENT_DATE - INTERVAL '7 days' GROUP BY competitor ORDER BY avg_sentiment DESC",
+          "visualization": {
+            "x_axis": "competitor",
+            "y_axis": "avg_sentiment",
+            "title": "Competitor Sentiment (Last 7 Days)"
+          }
+        },
+        {
+          "name": "Data Collection Status",
+          "type": "table",
+          "query": "SELECT competitor, data_type, COUNT(*) as count, MAX(created_at) as last_updated FROM market_data WHERE date = CURRENT_DATE GROUP BY competitor, data_type ORDER BY competitor, data_type",
+          "visualization": {
+            "title": "Today's Data Collection Status"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Competitor Analysis",
+      "description": "Detailed competitor performance and activities",
+      "cards": [
+        {
+          "name": "Competitor Sentiment Distribution",
+          "type": "pie",
+          "query": "SELECT competitor, AVG(sentiment_score) as sentiment FROM market_data WHERE date >= CURRENT_DATE - INTERVAL '7 days' GROUP BY competitor",
+          "visualization": {
+            "title": "Competitor Sentiment Distribution"
+          }
+        },
+        {
+          "name": "Social Media Activity",
+          "type": "scatter",
+          "query": "SELECT competitor, COUNT(*) as activity_count, AVG(sentiment_score) as sentiment FROM market_data WHERE data_type = 'twitter' AND date >= CURRENT_DATE - INTERVAL '7 days' GROUP BY competitor",
+          "visualization": {
+            "x_axis": "activity_count",
+            "y_axis": "sentiment",
+            "title": "Social Media Activity vs Sentiment"
+          }
+        },
+        {
+          "name": "News Coverage Analysis",
+          "type": "bar",
+          "query": "SELECT competitor, COUNT(*) as news_count, AVG(sentiment_score) as sentiment FROM market_data WHERE data_type = 'news' AND date >= CURRENT_DATE - INTERVAL '7 days' GROUP BY competitor ORDER BY news_count DESC",
+          "visualization": {
+            "x_axis": "competitor",
+            "y_axis": "news_count",
+            "title": "News Coverage by Competitor"
+          }
+        }
+      ]
+    },
+    {
+      "name": "AI Insights",
+      "description": "AI-generated insights and analysis",
+      "cards": [
+        {
+          "name": "Daily AI Analysis",
+          "type": "text",
+          "query": "SELECT ai_analysis FROM daily_insights WHERE date = CURRENT_DATE ORDER BY created_at DESC LIMIT 1",
+          "visualization": {
+            "title": "Today's AI Market Analysis"
+          }
+        },
+        {
+          "name": "Key Insights Timeline",
+          "type": "timeline",
+          "query": "SELECT date, key_insights FROM daily_insights WHERE date >= CURRENT_DATE - INTERVAL '14 days' ORDER BY date DESC",
+          "visualization": {
+            "title": "Key Insights Over Time"
+          }
+        },
+        {
+          "name": "Sentiment Confidence",
+          "type": "gauge",
+          "query": "SELECT AVG(confidence_score) as avg_confidence FROM market_data WHERE date = CURRENT_DATE",
+          "visualization": {
+            "title": "AI Analysis Confidence",
+            "min": 0,
+            "max": 1
+          }
+        }
+      ]
+    }
+  ],
+  "alerts": [
+    {
+      "name": "High Sentiment Alert",
+      "description": "Alert when competitor sentiment exceeds threshold",
+      "condition": "sentiment_score > 0.8",
+      "notification": "slack"
+    },
+    {
+      "name": "Low Sentiment Alert",
+      "description": "Alert when competitor sentiment drops below threshold",
+      "condition": "sentiment_score < -0.5",
+      "notification": "slack"
+    },
+    {
+      "name": "Data Collection Failure",
+      "description": "Alert when data collection fails",
+      "condition": "COUNT(*) < 5",
+      "notification": "telegram"
+    }
+  ],
+  "refresh_schedule": {
+    "frequency": "hourly",
+    "time": "00:00"
+  }
+}

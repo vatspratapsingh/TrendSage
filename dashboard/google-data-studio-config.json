@@ -1,0 +1,237 @@
+{
+  "name": "TrendSage Market Insights - Google Data Studio",
+  "description": "Google Data Studio configuration for market insights visualization",
+  "version": "1.0.0",
+  "data_sources": [
+    {
+      "name": "TrendSage PostgreSQL",
+      "type": "postgresql",
+      "connection_string": "{{ $env.DATABASE_URL }}",
+      "tables": [
+        "market_data",
+        "daily_insights",
+        "competitors",
+        "dashboard_metrics"
+      ]
+    }
+  ],
+  "reports": [
+    {
+      "name": "Market Insights Executive Dashboard",
+      "description": "High-level executive summary of market insights",
+      "pages": [
+        {
+          "name": "Executive Summary",
+          "components": [
+            {
+              "type": "scorecard",
+              "title": "Overall Market Sentiment",
+              "metric": "AVG(sentiment_score)",
+              "data_source": "market_data",
+              "filter": "date >= CURRENT_DATE - INTERVAL '7 days'"
+            },
+            {
+              "type": "scorecard",
+              "title": "Active Competitors",
+              "metric": "COUNT(DISTINCT competitor)",
+              "data_source": "market_data",
+              "filter": "date = CURRENT_DATE"
+            },
+            {
+              "type": "scorecard",
+              "title": "Data Points Today",
+              "metric": "COUNT(*)",
+              "data_source": "market_data",
+              "filter": "date = CURRENT_DATE"
+            },
+            {
+              "type": "scorecard",
+              "title": "AI Confidence",
+              "metric": "AVG(confidence_score)",
+              "data_source": "market_data",
+              "filter": "date = CURRENT_DATE"
+            }
+          ]
+        },
+        {
+          "name": "Sentiment Analysis",
+          "components": [
+            {
+              "type": "time_series",
+              "title": "Market Sentiment Trend",
+              "x_axis": "date",
+              "y_axis": "AVG(sentiment_score)",
+              "data_source": "market_data",
+              "filter": "date >= CURRENT_DATE - INTERVAL '30 days'",
+              "group_by": "date"
+            },
+            {
+              "type": "bar_chart",
+              "title": "Competitor Sentiment Comparison",
+              "x_axis": "competitor",
+              "y_axis": "AVG(sentiment_score)",
+              "data_source": "market_data",
+              "filter": "date >= CURRENT_DATE - INTERVAL '7 days'",
+              "group_by": "competitor"
+            },
+            {
+              "type": "pie_chart",
+              "title": "Sentiment Distribution",
+              "dimension": "CASE WHEN sentiment_score > 0.1 THEN 'Positive' WHEN sentiment_score < -0.1 THEN 'Negative' ELSE 'Neutral' END",
+              "metric": "COUNT(*)",
+              "data_source": "market_data",
+              "filter": "date >= CURRENT_DATE - INTERVAL '7 days'"
+            }
+          ]
+        },
+        {
+          "name": "Competitor Analysis",
+          "components": [
+            {
+              "type": "table",
+              "title": "Competitor Performance Matrix",
+              "columns": [
+                "competitor",
+                "AVG(sentiment_score) as avg_sentiment",
+                "COUNT(*) as data_points",
+                "MAX(created_at) as last_updated"
+              ],
+              "data_source": "market_data",
+              "filter": "date >= CURRENT_DATE - INTERVAL '7 days'",
+              "group_by": "competitor",
+              "sort": "avg_sentiment DESC"
+            },
+            {
+              "type": "scatter_plot",
+              "title": "Activity vs Sentiment",
+              "x_axis": "COUNT(*)",
+              "y_axis": "AVG(sentiment_score)",
+              "data_source": "market_data",
+              "filter": "date >= CURRENT_DATE - INTERVAL '7 days'",
+              "group_by": "competitor"
+            }
+          ]
+        },
+        {
+          "name": "Data Sources",
+          "components": [
+            {
+              "type": "bar_chart",
+              "title": "Data Collection by Source",
+              "x_axis": "data_type",
+              "y_axis": "COUNT(*)",
+              "data_source": "market_data",
+              "filter": "date >= CURRENT_DATE - INTERVAL '7 days'",
+              "group_by": "data_type"
+            },
+            {
+              "type": "time_series",
+              "title": "Data Collection Timeline",
+              "x_axis": "date",
+              "y_axis": "COUNT(*)",
+              "data_source": "market_data",
+              "filter": "date >= CURRENT_DATE - INTERVAL '30 days'",
+              "group_by": "date"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Detailed Analytics",
+      "description": "Detailed analytics for data analysts",
+      "pages": [
+        {
+          "name": "Raw Data Analysis",
+          "components": [
+            {
+              "type": "table",
+              "title": "Raw Market Data",
+              "columns": [
+                "date",
+                "competitor",
+                "data_type",
+                "sentiment_score",
+                "confidence_score",
+                "created_at"
+              ],
+              "data_source": "market_data",
+              "filter": "date >= CURRENT_DATE - INTERVAL '7 days'",
+              "sort": "created_at DESC",
+              "limit": 100
+            }
+          ]
+        },
+        {
+          "name": "AI Analysis History",
+          "components": [
+            {
+              "type": "text",
+              "title": "Latest AI Analysis",
+              "content": "ai_analysis",
+              "data_source": "daily_insights",
+              "filter": "date = CURRENT_DATE"
+            },
+            {
+              "type": "table",
+              "title": "Historical Insights",
+              "columns": [
+                "date",
+                "market_summary",
+                "created_at"
+              ],
+              "data_source": "daily_insights",
+              "filter": "date >= CURRENT_DATE - INTERVAL '30 days'",
+              "sort": "date DESC"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "scheduled_reports": [
+    {
+      "name": "Daily Executive Summary",
+      "description": "Daily automated report for executives",
+      "schedule": "daily",
+      "time": "09:30",
+      "recipients": ["executives@company.com"],
+      "format": "pdf"
+    },
+    {
+      "name": "Weekly Analytics Report",
+      "description": "Weekly detailed analytics report",
+      "schedule": "weekly",
+      "day": "monday",
+      "time": "10:00",
+      "recipients": ["analysts@company.com"],
+      "format": "pdf"
+    }
+  ],
+  "filters": [
+    {
+      "name": "Date Range",
+      "type": "date_range",
+      "default": "last_7_days"
+    },
+    {
+      "name": "Competitor",
+      "type": "dropdown",
+      "source": "competitors.name",
+      "multi_select": true
+    },
+    {
+      "name": "Data Type",
+      "type": "dropdown",
+      "options": ["website", "twitter", "stock", "news", "sentiment", "analysis"],
+      "multi_select": true
+    }
+  ],
+  "theme": {
+    "primary_color": "#1f77b4",
+    "secondary_color": "#ff7f0e",
+    "background_color": "#ffffff",
+    "text_color": "#333333",
+    "font_family": "Roboto"
+  }
+}
