@@ -67,3 +67,24 @@ Once configured, the workflow will automatically:
 - Adjust AI prompts for different analysis types
 - Customize notification templates
 - Add new visualization components
+
+## 🚀 Quick Start
+```bash
+# Run the demo
+node demo-pipeline.js
+
+# Run the full pipeline
+node working-pipeline.js
+
+# Start daily automation
+node schedule.js
+```
+
+## 📁 Project Files
+- `working-pipeline.js` - Main data collection and processing
+- `demo-pipeline.js` - Demonstration with sample data
+- `schedule.js` - Daily automation scheduler
+- `market-insights-workflow.json` - Complete n8n workflow
+- `database/schema.sql` - Database schema
+- `dashboard/` - Dashboard configurations
+- `notifications/` - Notification templates
